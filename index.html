@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>RING FLIP</title>
+  <script src="https://cdn.jsdelivr.net/npm/tone@15.1.22/dist/Tone.js"></script>
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/" } }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0A0A1A; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+    canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
+
+    #startScreen {
+      position: fixed; inset: 0;
+      background: #0A0A1A;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 10; cursor: pointer;
+    }
+    #startScreen.hidden { display: none; }
+
+    #instructionsScreen {
+      position: fixed; inset: 0;
+      background: #0A0A1A;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 10; cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    #instructionsScreen.hidden { display: none; }
+
+    .instr-item {
+      color: #00E5FF;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(12px, 3vw, 16px);
+      letter-spacing: 0.12em;
+      text-align: center;
+      margin: 14px 24px;
+      opacity: 0.9;
+    }
+    .instr-item span { display: block; font-size: 0.75em; color: rgba(0,229,255,0.5); margin-top: 4px; }
+
+    #instr-tap { color: #FFFFFF; font-size: clamp(11px, 2.5vw, 13px); letter-spacing: 0.18em; margin-top: 32px; animation: instrPulse 1.6s ease-in-out infinite; }
+    @keyframes instrPulse { 0%,100%{opacity:0.4;} 50%{opacity:1;} }
+
+    #hud {
+      position: fixed; top: 16px; left: 16px;
+      display: flex; gap: 8px; z-index: 5;
+      pointer-events: none;
+    }
+    .life-icon {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 1.5px solid #00E5FF;
+      background: transparent;
+      opacity: 1;
+      transition: opacity 0.3s;
+    }
+    .life-icon.lost { opacity: 0.2; }
+
+    #scoreDisplay {
+      position: fixed; top: 16px; right: 16px;
+      color: #FFFFFF; font-size: 20px;
+      font-family: 'Courier New', Courier, monospace;
+      z-index: 5; pointer-events: none;
+      text-align: right;
+    }
+    #levelDisplay {
+      position: fixed; top: 44px; right: 16px;
+      color: rgba(0,229,255,0.5); font-size: 12px;
+      font-family: 'Courier New', Courier, monospace;
+      z-index: 5; pointer-events: none;
+      text-align: right;
+    }
+
+    #flipBtn {
+      position: fixed;
+      bottom: 40px;
+      left: 50%; transform: translateX(-50%);
+      width: 72px; height: 72px; border-radius: 50%;
+      background: #FF4D00;
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 6;
+      touch-action: none;
+      transition: opacity 0.2s;
+      overflow: visible;
+    }
+    #flipBtn.hidden { display: none; }
+    #flipBtnCooldownText {
+      position: absolute; color: #FFFFFF;
+      font-size: 14px; font-family: 'Courier New', Courier, monospace;
+      pointer-events: none; font-weight: bold;
+    }
+    #flipBtnPulseRing {
+      position: absolute;
+      width: 72px; height: 72px; border-radius: 50%;
+      border: 2px solid #FF4D00;
+      pointer-events: none;
+      animation: flipPulse 1.2s ease-out infinite;
+    }
+    @keyframes flipPulse {
+      0% { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.33); opacity: 0; }
+    }
+    #flipBtnSvg { pointer-events: none; }
+
+    #overlayScreen {
+      position: fixed; inset: 0;
+      background: rgba(10,10,26,0.92);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 20; cursor: pointer;
+    }
+    #overlayScreen.visible { display: flex; }
+    #overlayTitle {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(28px, 7vw, 52px);
+      color: #00E5FF;
+      letter-spacing: 0.15em;
+      text-align: center;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 12px #00E5FF);
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+    #overlayScore {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(18px, 4vw, 28px);
+      color: #FFFFFF;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    #overlayBestChain {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(13px, 3vw, 18px);
+      color: #FF4D00;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    #overlayHighScore {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(11px, 2.5vw, 14px);
+      color: rgba(0,229,255,0.5);
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    #overlayTap {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(11px, 2.5vw, 13px);
+      color: #FFFFFF; letter-spacing: 0.18em;
+      animation: instrPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    #screenFlash {
+      position: fixed; inset: 0;
+      background: #FFFFFF;
+      pointer-events: none;
+      opacity: 0; z-index: 99;
+    }
+    #vignetteEl {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.65) 100%);
+      pointer-events: none; z-index: 3;
+    }
+    #desatOverlay {
+      position: fixed; inset: 0;
+      background: rgba(10,10,26,0);
+      pointer-events: none; z-index: 4;
+    }
+
+    #chainDisplay {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(24px, 6vw, 40px);
+      color: #FFFFFF;
+      pointer-events: none; z-index: 7;
+      opacity: 0; text-align: center;
+      text-shadow: 0 0 20px #FFFFFF;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Vignette -->
+<div id="vignetteEl"></div>
+<!-- Desaturation overlay for death -->
+<div id="desatOverlay"></div>
+<!-- Screen flash -->
+<div id="screenFlash"></div>
+<!-- Chain display -->
+<div id="chainDisplay"></div>
+
+<!-- START SCREEN -->
+<div id="startScreen">
+  <canvas id="startCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;"></canvas>
+  <svg id="startSvg" width="100%" height="100%" style="position:absolute;top:0;left:0;pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="title-glow" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+        <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+      </filter>
+      <style>
+        @keyframes fadeInTitle { from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);} }
+        @keyframes fadeInSub   { from{opacity:0;}to{opacity:0.85;} }
+        @keyframes tapPulse    { 0%,100%{opacity:0.5;}50%{opacity:1.0;} }
+      </style>
+    </defs>
+    <text id="svgTitle" x="50%" y="70%" text-anchor="middle"
+      font-family="'Courier New', Courier, monospace" font-size="52" font-weight="bold"
+      letter-spacing="0.15em" fill="#00E5FF"
+      filter="url(#title-glow)" opacity="0"
+      style="animation:fadeInTitle 1.2s ease-out 0.4s forwards">RING FLIP</text>
+    <text x="50%" y="76%" text-anchor="middle"
+      font-family="'Courier New', Courier, monospace" font-size="13"
+      letter-spacing="0.22em" fill="#FF4D00" opacity="0"
+      style="animation:fadeInSub 0.9s ease-out 1.3s forwards">EVERY ORBIT IS A COUNTDOWN</text>
+    <text x="50%" y="86%" text-anchor="middle"
+      font-family="'Courier New', Courier, monospace" font-size="14"
+      letter-spacing="0.18em" fill="#FFFFFF" opacity="0"
+      style="animation:tapPulse 1.6s ease-in-out 2.0s infinite">TAP TO BEGIN</text>
+  </svg>
+</div>
+
+<!-- INSTRUCTIONS SCREEN -->
+<div id="instructionsScreen">
+  <div class="instr-item">TAP THE BUTTON TO REVERSE ALL ORBITS</div>
+  <div class="instr-item">CHAIN COLLISIONS FOR MAXIMUM SCORE</div>
+  <div class="instr-item">ENEMIES THAT SURVIVE 3 ORBITS SPIRAL INWARD</div>
+  <div class="instr-item" id="instr-tap">TAP TO BEGIN</div>
+</div>
+
+<!-- GAME HUD -->
+<div id="hud">
+  <div class="life-icon" id="life0"></div>
+  <div class="life-icon" id="life1"></div>
+  <div class="life-icon" id="life2"></div>
+</div>
+<div id="scoreDisplay">0</div>
+<div id="levelDisplay">WAVE 1</div>
+
+<!-- FLIP BUTTON -->
+<button id="flipBtn">
+  <div id="flipBtnPulseRing"></div>
+  <svg id="flipBtnSvg" width="44" height="44" viewBox="0 0 44 44">
+    <path d="M22 6 A16 16 0 1 1 6 22" stroke="#FFFFFF" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <polygon points="6,22 0,16 12,16" fill="#FFFFFF"/>
+  </svg>
+  <span id="flipBtnCooldownText"></span>
+  <svg id="flipBtnArcSvg" style="position:absolute;top:0;left:0;pointer-events:none;" width="72" height="72" viewBox="0 0 72 72">
+    <circle id="flipArcCircle" cx="36" cy="36" r="33" stroke="#1A1A3A" stroke-width="4" fill="none"
+      stroke-dasharray="207.3" stroke-dashoffset="207.3"
+      transform="rotate(-90 36 36)"/>
+  </svg>
+</button>
+
+<!-- OVERLAY (win/lose) -->
+<div id="overlayScreen">
+  <div id="overlayTitle">RING CLEARED</div>
+  <div id="overlayScore">SCORE: 0</div>
+  <div id="overlayBestChain"></div>
+  <div id="overlayHighScore"></div>
+  <div id="overlayTap">TAP TO RESTART</div>
+</div>
+
+<!-- GitHub link -->
+<a href="https://github.com/nishivector/ring-flip" target="_blank" style="position:fixed;bottom:16px;right:16px;color:rgba(255,255,255,0.4);font-size:12px;text-decoration:none;font-family:monospace;z-index:1000;">GitHub ↗</a>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const SCORE_KEY = 'ring-flip-highscore';
+const CHAIN_RADIUS_PX = 28;
+const SPIRAL_ORBITS  = 3;
+const SPIRAL_SPEED_1 = 12; // px/sec phase 1
+const SPIRAL_SPEED_2 = 20; // px/sec phase 2
+const SPIRAL_PHASE1_DUR = 2000; // ms
+const DEATH_DISTANCE_PX = 8;
+const POST_DEATH_FREEZE = 1500;
+const FLIP_ROTATION_MS  = 80;
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let gameState = 'start'; // 'start'|'playing'|'frozen'|'win'|'lose'|'between'
+let currentLevel = 1;
+let score = 0;
+let lives = 3;
+let hasEverActed = false;
+let gameStartTime = 0;
+let flipCooldownMs = 4000;
+let flipCooldownRemaining = 0;
+let lastFlipTime = -Infinity;
+let chainDepth = 0;
+let bestChain = 0;
+let waveDiedThisRound = false;
+let postDeathTimer = 0;
+let postDeathActive = false;
+let levelStartTime = 0;
+
+// L5 ring3 spawn
+let ring3SpawnTime = 0;
+let ring3Spawned = 0;
+
+// Rings / enemies
+let rings = []; // { radius (world), radiusPx, speedDeg, dir (+1 CW / -1 CCW), enemies[] }
+// Enemy: { ring, angle(deg), orbits, spiraling, spiralTimer, spiralDir(+1 in/-1 out),
+//          flipping, flipStart, flipFrom, mesh, trailPoints, warningLine }
+
+// Three.js
+let renderer, scene, camera, composer;
+let worldWidth = 12;
+let pxPerUnit; // pixels per world unit
+
+// Canvas overlay (2D) for player, rings, enemies drawn as sprite layers
+// We use THREE canvas2D texture approach: draw to offscreen canvas each frame
+let overlayCanvas, overlayCtx, overlayTexture, overlayMesh;
+
+// Start screen canvas
+let startAnimCanvas, startAnimCtx;
+let startEnemies = [];
+let startFlipTimer = 0;
+let startFlipPhase = 0; // 0=normal, 1=flipped, 2=post-explosion
+
+// DOM refs
+const startScreen     = document.getElementById('startScreen');
+const instrScreen     = document.getElementById('instructionsScreen');
+const flipBtn         = document.getElementById('flipBtn');
+const flipCoolText    = document.getElementById('flipBtnCooldownText');
+const flipArcCircle   = document.getElementById('flipArcCircle');
+const flipPulseRing   = document.getElementById('flipBtnPulseRing');
+const overlayScreen   = document.getElementById('overlayScreen');
+const overlayTitle    = document.getElementById('overlayTitle');
+const overlayScoreEl  = document.getElementById('overlayScore');
+const overlayBestEl   = document.getElementById('overlayBestChain');
+const overlayHiEl     = document.getElementById('overlayHighScore');
+const scoreDisplay    = document.getElementById('scoreDisplay');
+const levelDisplay    = document.getElementById('levelDisplay');
+const screenFlash     = document.getElementById('screenFlash');
+const desatOverlay    = document.getElementById('desatOverlay');
+const chainDisplay    = document.getElementById('chainDisplay');
+
+// ─── AUDIO ────────────────────────────────────────────────────────────────────
+let audioReady = false;
+let flipSynth, boomSynth, pingSynth, hitSynth, hitDist, waveSynth, waveReverb;
+let bassOsc, bassLFO, bassGain;
+let hatLoop, hatPattern;
+let musicBusGain, layer2Gain;
+let layer2BoostTimer = 0;
+let layer1LFODouble = false;
+let musicDipTimer = 0;
+
+function initAudio() {
+  if (audioReady) return Promise.resolve();
+  return Tone.start().then(() => {
+    audioReady = true;
+
+    // Master gain
+    musicBusGain = new Tone.Gain(0.6).toDestination();
+
+    // Layer 1: sub-bass + LFO
+    bassOsc  = new Tone.Oscillator({ type:'sine', frequency: 55 }).connect(musicBusGain);
+    bassLFO  = new Tone.Oscillator({ type:'sine', frequency: 0.25 }).start();
+    bassGain = new Tone.Gain(0.3).connect(musicBusGain);
+    bassOsc.connect(bassGain);
+    // LFO modulates bassGain amplitude (0.15 to 0.45)
+    const lfoRange = new Tone.Gain(0.15).connect(bassGain.gain);
+    bassLFO.connect(lfoRange);
+    bassGain.gain.value = 0.3;
+    bassOsc.start();
+
+    // Layer 2: hi-hat
+    layer2Gain = new Tone.Gain(0.3).connect(musicBusGain);
+    const hatSynth = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.01 }
+    }).connect(layer2Gain);
+    const openHatSynth = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.18, sustain: 0, release: 0.08 }
+    }).connect(layer2Gain);
+
+    // 128 BPM = 16th note = 468.75ms / 4 = ~117ms
+    const sixteenthMs = (60000 / 128) / 4;
+    let hatBeat = 0;
+    hatPattern = new Tone.Loop((time) => {
+      const beat = hatBeat % 16;
+      if (beat === 8) { // beat 3 (0-indexed: beat 3 = 8th sixteenth)
+        openHatSynth.triggerAttackRelease('16n', time);
+      } else {
+        hatSynth.triggerAttackRelease('32n', time);
+      }
+      hatBeat++;
+    }, `${sixteenthMs}ms`);
+    hatPattern.start(0);
+    Tone.Transport.bpm.value = 128;
+    Tone.Transport.start();
+
+    // SFX
+    flipSynth = new Tone.MetalSynth({
+      frequency: 200,
+      envelope: { attack: 0.001, decay: 0.12, release: 0.3 },
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance: 3200,
+      octaves: 1.5
+    }).toDestination();
+
+    boomSynth = new Tone.MembraneSynth({
+      pitchDecay: 0.15,
+      octaves: 10,
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.5 }
+    }).toDestination();
+
+    pingSynth = new Tone.Synth({
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.01, decay: 0.08, sustain: 0, release: 0.1 }
+    }).toDestination();
+
+    hitDist = new Tone.Distortion(0.9).toDestination();
+    hitSynth = new Tone.Synth({
+      oscillator: { type: 'sawtooth' },
+      envelope: { attack: 0.001, decay: 0.6, sustain: 0, release: 0.3 }
+    }).connect(hitDist);
+
+    waveReverb = new Tone.Reverb({ decay: 3, wet: 0.7 }).toDestination();
+    waveSynth  = new Tone.PolySynth(Tone.Synth).connect(waveReverb);
+  });
+}
+
+function playFlip()    { if(!audioReady) return; try{ flipSynth.triggerAttackRelease('8n'); }catch(e){} }
+function playBoom(idx) {
+  if(!audioReady) return;
+  const notes = ['C1','C#1','D1','D#1','E1','F1','F#1','G1','G#1','A1'];
+  const n = notes[Math.min(idx, notes.length-1)];
+  try{ boomSynth.triggerAttackRelease(n, '8n'); }catch(e){}
+}
+function playPing()    { if(!audioReady) return; try{ pingSynth.triggerAttackRelease('A4','32n'); }catch(e){} }
+function playHit()     { if(!audioReady) return; try{ hitSynth.triggerAttackRelease('G2','4n'); }catch(e){} }
+function playWaveClear() {
+  if(!audioReady) return;
+  try{ waveSynth.triggerAttackRelease(['D3','F3','A3','C4'],'2n'); }catch(e){}
+}
+
+function musicChain3() {
+  if(!audioReady) return;
+  layer2BoostTimer = 3750;
+  if(layer2Gain) layer2Gain.gain.rampTo(0.7, 0.05);
+}
+function musicLifeLost() {
+  if(!audioReady) return;
+  musicDipTimer = 500;
+  if(musicBusGain) musicBusGain.gain.rampTo(0.06, 0.05);
+}
+function setCooldownLFO(active) {
+  if(!audioReady || !bassLFO) return;
+  bassLFO.frequency.rampTo(active ? 0.5 : 0.25, 0.2);
+}
+
+// ─── THREE.JS SETUP ───────────────────────────────────────────────────────────
+function initThree() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0A0A1A);
+
+  const aspect = window.innerWidth / window.innerHeight;
+  camera = new THREE.OrthographicCamera(
+    -worldWidth/2, worldWidth/2,
+    (worldWidth/2)/aspect, -(worldWidth/2)/aspect,
+    0.1, 100
+  );
+  camera.position.set(0, 0, 18);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  document.body.appendChild(renderer.domElement);
+
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    1.8, 0.4, 0.08
+  );
+  composer.addPass(bloom);
+
+  // Overlay canvas for 2D drawing
+  overlayCanvas = document.createElement('canvas');
+  overlayCanvas.width  = window.innerWidth;
+  overlayCanvas.height = window.innerHeight;
+  overlayCtx = overlayCanvas.getContext('2d');
+  overlayTexture = new THREE.CanvasTexture(overlayCanvas);
+  const overlayGeo = new THREE.PlaneGeometry(worldWidth, worldWidth / aspect);
+  const overlayMat = new THREE.MeshBasicMaterial({
+    map: overlayTexture, transparent: true, depthWrite: false
+  });
+  overlayMesh = new THREE.Mesh(overlayGeo, overlayMat);
+  overlayMesh.position.z = 0.1;
+  scene.add(overlayMesh);
+
+  pxPerUnit = window.innerWidth / worldWidth;
+
+  window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const aspect = w / h;
+  camera.left   = -worldWidth/2;
+  camera.right  =  worldWidth/2;
+  camera.top    =  (worldWidth/2)/aspect;
+  camera.bottom = -(worldWidth/2)/aspect;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  overlayCanvas.width  = w;
+  overlayCanvas.height = h;
+  overlayTexture.needsUpdate = true;
+  overlayMesh.scale.set(1, w/h / (w/h), 1); // keep proportional
+  pxPerUnit = w / worldWidth;
+}
+
+// ─── COORDINATE HELPERS ───────────────────────────────────────────────────────
+function pxToWorld(px) { return px / pxPerUnit; }
+
+function enemyScreenPos(enemy) {
+  // Screen pixels from center
+  const angle = enemy.angle * Math.PI / 180;
+  const r = enemy.currentRadiusPx !== undefined ? enemy.currentRadiusPx : enemy.ring.radiusPx;
+  const x = window.innerWidth/2  + Math.cos(angle) * r;
+  const y = window.innerHeight/2 - Math.sin(angle) * r; // Y inverted
+  return { x, y };
+}
+
+function getScaledRadius(radiusPx) {
+  const aspect = window.innerWidth / window.innerHeight;
+  if (aspect < 1) {
+    // Portrait: scale down so rings fit
+    const scale = aspect * 0.9;
+    return radiusPx * scale;
+  }
+  return radiusPx;
+}
+
+// ─── LEVEL DEFINITIONS ───────────────────────────────────────────────────────
+const LEVEL_DEFS = [
+  null, // index 0 unused
+  { // L1
+    cooldown: 4000,
+    rings: [
+      { radiusPx: 140, speedDeg: 28, dir: 1,
+        enemyAngles: [0, 120, 240] }
+    ]
+  },
+  { // L2
+    cooldown: 4000,
+    rings: [
+      { radiusPx: 140, speedDeg: 32, dir: 1,
+        enemyAngles: [0, 20, 180, 200] } // 2 clusters: 0-20 and 180-200
+    ]
+  },
+  { // L3
+    cooldown: 3500,
+    rings: [
+      { radiusPx: 120, speedDeg: 36, dir: 1,
+        enemyAngles: [0, 40, 180, 220] },
+      { radiusPx: 200, speedDeg: 22, dir: 1,
+        enemyAngles: [0, 120, 240] }
+    ]
+  },
+  { // L4
+    cooldown: 3000,
+    rings: [
+      { radiusPx: 120, speedDeg: 40, dir: 1,
+        enemyAngles: [0, 40, 180, 220] },
+      { radiusPx: 200, speedDeg: 24, dir: -1,
+        enemyAngles: [0, 40, 180, 220] }
+    ]
+  },
+  { // L5
+    cooldown: 3000,
+    rings: [
+      { radiusPx: 110, speedDeg: 45, dir: 1,
+        enemyAngles: [0, 30, 120, 150, 240, 270] },
+      { radiusPx: 180, speedDeg: 26, dir: -1,
+        enemyAngles: [0, 20, 40, 180, 200, 220] },
+      { radiusPx: 260, speedDeg: 15, dir: 1,
+        enemyAngles: [0, 120, 240], delayed: true } // enters at t+8s
+    ]
+  }
+];
+
+// ─── EXPLOSION PARTICLES ─────────────────────────────────────────────────────
+let explosions = []; // { x, y, lines:[], startTime, chainDepth }
+let chainScorePopups = []; // { x, y, text, startTime }
+
+function createExplosion(x, y, depth) {
+  const lineCount = 12 + Math.max(0, depth - 1) * 4;
+  const burstRadius = 20 + Math.max(0, depth - 1) * 8;
+  const lines = [];
+  for (let i = 0; i < lineCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const len   = 20 + Math.random() * 20;
+    lines.push({ angle, len, burstRadius });
+  }
+  explosions.push({ x, y, lines, startTime: performance.now(), depth });
+}
+
+function drawExplosions(ctx, now) {
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const ex = explosions[i];
+    const t  = (now - ex.startTime) / 180;
+    if (t >= 1) { explosions.splice(i, 1); continue; }
+    const ease = 1 - t * t; // ease-out
+    for (const line of ex.lines) {
+      const x2 = ex.x + Math.cos(line.angle) * (line.len + line.burstRadius) * ease;
+      const y2 = ex.y + Math.sin(line.angle) * (line.len + line.burstRadius) * ease;
+      const r = Math.round(255);
+      const g = Math.round(255 * (1-t) + 179 * t); // white → #FFB300
+      const b = Math.round(0);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${ease})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ex.x, ex.y);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+  }
+}
+
+// ─── SCORE POPUP ─────────────────────────────────────────────────────────────
+function drawScorePopups(ctx, now) {
+  for (let i = chainScorePopups.length - 1; i >= 0; i--) {
+    const p = chainScorePopups[i];
+    const t = (now - p.startTime) / 600;
+    if (t >= 1) { chainScorePopups.splice(i, 1); continue; }
+    const alpha = 1 - t;
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.font = `bold ${14 + p.depth * 2}px 'Courier New'`;
+    ctx.textAlign = 'center';
+    ctx.fillText(p.text, p.x, p.y - t * 30);
+  }
+}
+
+// ─── ENEMY TRAILS ────────────────────────────────────────────────────────────
+function drawTrail(ctx, enemy) {
+  if (!enemy.spiraling || !enemy.trail || enemy.trail.length < 2) return;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let i = 0; i < enemy.trail.length; i++) {
+    const pt = enemy.trail[i];
+    if (i === 0) ctx.moveTo(pt.x, pt.y);
+    else ctx.lineTo(pt.x, pt.y);
+  }
+  ctx.stroke();
+}
+
+// ─── WARNING LINE ─────────────────────────────────────────────────────────────
+function drawWarningLine(ctx, enemy) {
+  if (!enemy.spiraling) return;
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  const pos = enemyScreenPos(enemy);
+  ctx.strokeStyle = 'rgba(255,0,0,0.4)';
+  ctx.lineWidth = 1;
+  if (ctx.setLineDash) ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+  if (ctx.setLineDash) ctx.setLineDash([]);
+}
+
+// ─── DRAW PLAYER ─────────────────────────────────────────────────────────────
+let playerPulseT = 0;
+let playerFlashTimer = 0;
+
+function drawPlayer(ctx, now) {
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  const pulseR = 8 + 2 * (0.5 + 0.5 * Math.sin(playerPulseT));
+
+  let color = '#00E5FF';
+  if (playerFlashTimer > 0) {
+    color = '#FFFFFF';
+  }
+
+  // Outer stroke circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, 16, 0, Math.PI*2);
+  ctx.strokeStyle = `rgba(0,229,255,0.4)`;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Tick marks
+  ctx.strokeStyle = `rgba(0,229,255,0.6)`;
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2;
+    const x1 = cx + Math.cos(a) * 16;
+    const y1 = cy + Math.sin(a) * 16;
+    const x2 = cx + Math.cos(a) * 22;
+    const y2 = cy + Math.sin(a) * 22;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // Inner filled circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, pulseR, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// ─── DRAW RING ─────────────────────────────────────────────────────────────
+function drawRing(ctx, ring, now) {
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  const r = ring.currentRadiusPx || ring.radiusPx;
+  const period = (360 / ring.speedDeg) * 1000; // ms per full orbit
+  const phase  = (now % period) / period;
+  const opacity = 0.3 + 0.3 * (0.5 + 0.5 * Math.sin(phase * Math.PI * 2));
+  ctx.strokeStyle = `rgba(26,26,58,${opacity})`;
+  ctx.lineWidth = 1.5;
+  if (ctx.setLineDash) ctx.setLineDash([8, 4]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  if (ctx.setLineDash) ctx.setLineDash([]);
+
+  // Flash ring if any enemy is spiraling from it
+  if (ring.flashTimer > 0) {
+    const fOp = Math.floor(ring.flashTimer / 200) % 2 === 0 ? 0.8 : 0.15;
+    ctx.strokeStyle = `rgba(255,77,0,${fOp})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+// ─── DRAW ENEMY ─────────────────────────────────────────────────────────────
+function drawEnemy(ctx, enemy, now) {
+  const pos = enemyScreenPos(enemy);
+
+  // Trail for spiraling
+  drawTrail(ctx, enemy);
+  drawWarningLine(ctx, enemy);
+
+  // Rotation: face direction of travel
+  // CW means angle increases → direction is +90° from radial (tangent)
+  // visually: apex points in direction of motion
+  let travelAngle;
+  const radAngle = enemy.angle * Math.PI / 180;
+  const effectiveDir = enemy.spiraling ? enemy.spiralDir : (enemy.ring.dir * (enemy.flipping ? -1 : 1));
+  // Tangent for CW orbit: perpendicular to radius, pointing "forward"
+  travelAngle = radAngle + (effectiveDir > 0 ? Math.PI / 2 : -Math.PI / 2);
+  // Add flip rotation animation
+  if (enemy.flipping) {
+    const ft = Math.min((now - enemy.flipStart) / FLIP_ROTATION_MS, 1);
+    const extraRot = ft * Math.PI; // 0 to 180deg
+    travelAngle = enemy.flipFrom + extraRot * Math.sign(enemy.ring.dir);
+  }
+
+  const w = 14, h = 18;
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  ctx.rotate(travelAngle + Math.PI/2); // apex forward
+
+  const color = enemy.spiraling ? '#FFFFFF' : '#FF4D00';
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, -h/2);       // apex
+  ctx.lineTo(-w/2, h/2);     // base left
+  ctx.lineTo(w/2, h/2);      // base right
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner line
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, h/2);
+  ctx.lineTo(0, -h/2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ─── LEVEL SETUP ─────────────────────────────────────────────────────────────
+function startLevel(lvl) {
+  currentLevel = lvl;
+  rings = [];
+  explosions = [];
+  chainScorePopups = [];
+  chainDepth = 0;
+  waveDiedThisRound = false;
+  ring3Spawned = 0;
+  ring3SpawnTime = 0;
+  levelStartTime = performance.now();
+
+  const def = LEVEL_DEFS[lvl];
+  flipCooldownMs = def.cooldown;
+  flipCooldownRemaining = 0;
+
+  const levelDisp = document.getElementById('levelDisplay');
+  if (levelDisp) levelDisp.textContent = `WAVE ${lvl}`;
+
+  def.rings.forEach((rd, ri) => {
+    const r = {
+      radiusPx:       getScaledRadius(rd.radiusPx),
+      speedDeg:       rd.speedDeg,
+      dir:            rd.dir,
+      flashTimer:     0,
+      enemies:        [],
+      delayed:        rd.delayed || false,
+      active:         !rd.delayed
+    };
+    r.currentRadiusPx = r.radiusPx;
+    rd.enemyAngles.forEach((ang) => {
+      const e = {
+        ring:          r,
+        angle:         ang,
+        orbits:        0,
+        lastFullAngle: ang, // track angle accumulation for orbit count
+        totalAngle:    0,
+        spiraling:     false,
+        spiralTimer:   0,
+        spiralDir:     -1, // inward
+        currentRadiusPx: r.radiusPx,
+        flipping:      false,
+        flipStart:     0,
+        flipFrom:      0,
+        trail:         [],
+        trailTimer:    0,
+        alive:         true
+      };
+      if (!r.delayed) r.enemies.push(e);
+    });
+    // Store raw angles for delayed ring
+    if (r.delayed) r.pendingAngles = [...rd.enemyAngles];
+    rings.push(r);
+  });
+
+  flipBtn.classList.remove('hidden');
+  overlayScreen.classList.remove('visible');
+  updateFlipButton();
+}
+
+// ─── COLLISION DETECTION ─────────────────────────────────────────────────────
+function checkCollisions(now) {
+  // Collect all alive enemies
+  let allEnemies = [];
+  rings.forEach(r => r.enemies.forEach(e => { if (e.alive) allEnemies.push(e); }));
+
+  let collisionFound = true;
+  while (collisionFound) {
+    collisionFound = false;
+    for (let i = 0; i < allEnemies.length; i++) {
+      for (let j = i + 1; j < allEnemies.length; j++) {
+        const ea = allEnemies[i];
+        const eb = allEnemies[j];
+        if (!ea.alive || !eb.alive) continue;
+        const pa = enemyScreenPos(ea);
+        const pb = enemyScreenPos(eb);
+        const dx = pa.x - pb.x, dy = pa.y - pb.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < CHAIN_RADIUS_PX) {
+          // Collision!
+          const midX = (pa.x + pb.x) / 2;
+          const midY = (pa.y + pb.y) / 2;
+          createExplosion(midX, midY, chainDepth);
+          playBoom(chainDepth);
+          chainDepth++;
+          if (chainDepth >= 3) musicChain3();
+          if (chainDepth > bestChain) bestChain = chainDepth;
+
+          // Score
+          const pts = 100 * Math.pow(2, chainDepth - 1);
+          score += pts;
+          updateScoreDisplay();
+          chainScorePopups.push({ x: midX, y: midY - 20, text: `+${pts}`, depth: chainDepth, startTime: now });
+
+          // Flash
+          const flashOp = chainDepth >= 5 ? 0.3 : 0.15;
+          doScreenFlash(flashOp, 60);
+
+          // Update chain display
+          chainDisplay.textContent = `×${chainDepth}`;
+          chainDisplay.style.opacity = '1';
+          setTimeout(() => { chainDisplay.style.opacity = '0'; }, 800);
+
+          ea.alive = false;
+          eb.alive = false;
+          // Remove from ring arrays
+          ea.ring.enemies = ea.ring.enemies.filter(x => x !== ea);
+          eb.ring.enemies = eb.ring.enemies.filter(x => x !== eb);
+
+          allEnemies = allEnemies.filter(x => x.alive);
+          collisionFound = true;
+          break;
+        }
+      }
+      if (collisionFound) break;
+    }
+  }
+}
+
+// ─── SCREEN FLASH ─────────────────────────────────────────────────────────────
+function doScreenFlash(opacity, durationMs) {
+  screenFlash.style.opacity = opacity;
+  screenFlash.style.transition = 'none';
+  requestAnimationFrame(() => {
+    screenFlash.style.transition = `opacity ${durationMs}ms linear`;
+    screenFlash.style.opacity = '0';
+  });
+}
+
+// ─── FLIP ─────────────────────────────────────────────────────────────────────
+function doFlip(now) {
+  if (flipCooldownRemaining > 0) return;
+  if (gameState !== 'playing') return;
+
+  hasEverActed = true;
+  flipCooldownRemaining = flipCooldownMs;
+  lastFlipTime = now;
+  chainDepth = 0;
+
+  playFlip();
+  setCooldownLFO(true);
+  doScreenFlash(0.08, 80);
+
+  // Reverse all enemies
+  rings.forEach(r => {
+    if (!r.active) return;
+    r.dir *= -1;
+    r.enemies.forEach(e => {
+      // Compute current travel angle before flip for animation
+      const radAngle = e.angle * Math.PI / 180;
+      e.flipFrom = radAngle + (r.dir > 0 ? Math.PI / 2 : -Math.PI / 2); // after dir already flipped
+      e.flipping = true;
+      e.flipStart = now;
+      // Spiraling enemies also reverse
+      if (e.spiraling) {
+        e.spiralDir *= -1;
+      }
+    });
+  });
+
+  // Immediate collision check after flip
+  setTimeout(() => {
+    checkCollisions(performance.now());
+    checkWaveComplete();
+  }, FLIP_ROTATION_MS + 10);
+
+  updateFlipButton();
+}
+
+// ─── UPDATE FLIP BUTTON ───────────────────────────────────────────────────────
+function updateFlipButton() {
+  const cd = flipCooldownRemaining;
+  const totalCd = flipCooldownMs;
+  if (cd <= 0) {
+    // Available
+    flipBtn.style.opacity = '1';
+    flipBtn.style.background = '#FF4D00';
+    flipCoolText.textContent = '';
+    flipArcCircle.style.strokeDashoffset = '207.3';
+    flipPulseRing.style.display = 'block';
+  } else {
+    flipBtn.style.opacity = '1';
+    flipBtn.style.background = 'rgba(255,77,0,0.2)';
+    flipPulseRing.style.display = 'none';
+    const secs = Math.ceil(cd / 1000);
+    flipCoolText.textContent = secs;
+    const progress = 1 - cd / totalCd;
+    const circumference = 207.3;
+    flipArcCircle.style.strokeDashoffset = circumference * (1 - progress);
+  }
+}
+
+// ─── WAVE COMPLETE ─────────────────────────────────────────────────────────────
+function checkWaveComplete() {
+  if (!hasEverActed) return;
+  const totalEnemies = rings.reduce((s, r) => s + r.enemies.length, 0);
+  // Also count delayed enemies not yet spawned
+  let pendingCount = 0;
+  if (currentLevel === 5 && ring3Spawned < 3) {
+    const def = LEVEL_DEFS[5].rings[2];
+    pendingCount = def.enemyAngles.length - ring3Spawned;
+  }
+  if (totalEnemies === 0 && pendingCount === 0) {
+    waveClear();
+  }
+}
+
+function waveClear() {
+  if (gameState !== 'playing') return;
+  gameState = 'between';
+  score += 500; // wave clear bonus
+  if (!waveDiedThisRound) score += 500; // no-death bonus
+  updateScoreDisplay();
+  playWaveClear();
+
+  flipBtn.classList.add('hidden');
+
+  if (currentLevel >= 5) {
+    setTimeout(() => showWin(), 800);
+  } else {
+    setTimeout(() => {
+      currentLevel++;
+      gameState = 'playing';
+      startLevel(currentLevel);
+    }, 1500);
+  }
+}
+
+function showWin() {
+  gameState = 'win';
+  overlayTitle.style.color = '#00E5FF';
+  overlayTitle.textContent = 'RING CLEARED';
+  overlayScoreEl.textContent = `SCORE: ${score}`;
+  overlayBestEl.textContent = `BEST CHAIN: ×${bestChain}`;
+  const hi = parseInt(localStorage.getItem(SCORE_KEY) || '0');
+  if (score > hi) localStorage.setItem(SCORE_KEY, score);
+  overlayHiEl.textContent = `HIGH SCORE: ${Math.max(score, hi)}`;
+  overlayScreen.classList.add('visible');
+  flipBtn.classList.add('hidden');
+}
+
+function showLose() {
+  gameState = 'lose';
+  overlayTitle.style.color = '#FF4D00';
+  overlayTitle.textContent = 'GRAVITY WINS';
+  overlayScoreEl.textContent = `SCORE: ${score}`;
+  overlayBestEl.textContent = `BEST CHAIN: ×${bestChain}`;
+  const hi = parseInt(localStorage.getItem(SCORE_KEY) || '0');
+  if (score > hi) localStorage.setItem(SCORE_KEY, score);
+  overlayHiEl.textContent = `HIGH SCORE: ${Math.max(score, hi)}`;
+  overlayScreen.classList.add('visible');
+  flipBtn.classList.add('hidden');
+}
+
+// ─── PLAYER HIT ───────────────────────────────────────────────────────────────
+function playerHit(enemy) {
+  if (!hasEverActed) return;
+  if (gameState !== 'playing') return;
+  enemy.alive = false;
+  enemy.ring.enemies = enemy.ring.enemies.filter(e => e !== enemy);
+  lives--;
+  waveDiedThisRound = true;
+  playHit();
+  musicLifeLost();
+  updateLives();
+
+  if (lives <= 0) {
+    // Death animation then lose screen
+    gameState = 'frozen';
+    desaturate(true);
+    setTimeout(() => {
+      showLose();
+    }, POST_DEATH_FREEZE);
+    return;
+  }
+
+  // Death freeze + respawn
+  gameState = 'frozen';
+  desaturate(true);
+  postDeathActive = true;
+  postDeathTimer = POST_DEATH_FREEZE;
+}
+
+function respawnAfterDeath() {
+  desaturate(false);
+  postDeathActive = false;
+  gameState = 'playing';
+
+  // Remove all spiraling enemies
+  rings.forEach(r => {
+    r.enemies = r.enemies.filter(e => {
+      if (e.spiraling) { e.alive = false; return false; }
+      return true;
+    });
+  });
+
+  // Redistribute remaining enemies evenly on their rings
+  rings.forEach(r => {
+    const n = r.enemies.length;
+    if (n === 0) return;
+    const spacing = 360 / n;
+    r.enemies.forEach((e, i) => {
+      e.angle = i * spacing;
+      e.totalAngle = 0;
+      e.orbits = 0;
+      e.spiraling = false;
+      e.currentRadiusPx = r.radiusPx;
+    });
+  });
+
+  // Flash player
+  playerFlashTimer = 200;
+}
+
+function desaturate(on) {
+  desatOverlay.style.background = on
+    ? 'rgba(10,10,26,0.7)' // approximate 30% saturation via overlay
+    : 'rgba(10,10,26,0)';
+  desatOverlay.style.transition = 'background 0.3s';
+}
+
+// ─── HUD ─────────────────────────────────────────────────────────────────────
+function updateLives() {
+  for (let i = 0; i < 3; i++) {
+    const el = document.getElementById(`life${i}`);
+    if (el) el.classList.toggle('lost', i >= lives);
+  }
+}
+
+function updateScoreDisplay() {
+  if (scoreDisplay) scoreDisplay.textContent = score;
+}
+
+// ─── MAIN GAME LOOP ───────────────────────────────────────────────────────────
+let lastTime = 0;
+
+function gameLoop(now) {
+  requestAnimationFrame(gameLoop);
+
+  const dt = Math.min(now - lastTime, 100); // cap dt
+  lastTime = now;
+
+  // Update flip cooldown
+  if (flipCooldownRemaining > 0 && gameState === 'playing') {
+    flipCooldownRemaining -= dt;
+    if (flipCooldownRemaining <= 0) {
+      flipCooldownRemaining = 0;
+      playPing();
+      setCooldownLFO(false);
+    }
+    updateFlipButton();
+  }
+
+  // Music layer2 boost timer
+  if (layer2BoostTimer > 0 && audioReady) {
+    layer2BoostTimer -= dt;
+    if (layer2BoostTimer <= 0) {
+      layer2BoostTimer = 0;
+      if (layer2Gain) layer2Gain.gain.rampTo(0.3, 0.2);
+    }
+  }
+
+  // Music dip timer
+  if (musicDipTimer > 0 && audioReady) {
+    musicDipTimer -= dt;
+    if (musicDipTimer <= 0) {
+      musicDipTimer = 0;
+      if (musicBusGain) musicBusGain.gain.rampTo(0.6, 0.3);
+    }
+  }
+
+  // Player flash timer
+  if (playerFlashTimer > 0) {
+    playerFlashTimer -= dt;
+  }
+
+  // Post-death respawn timer
+  if (postDeathActive) {
+    postDeathTimer -= dt;
+    if (postDeathTimer <= 0) {
+      respawnAfterDeath();
+    }
+  }
+
+  if (gameState === 'playing') {
+    updateEnemies(dt, now);
+    checkDeaths(now);
+    checkWaveComplete();
+  }
+
+  // Update ring flash timers
+  rings.forEach(r => {
+    if (r.flashTimer > 0) r.flashTimer -= dt;
+  });
+
+  // Draw overlay
+  drawOverlay(now);
+
+  // Render Three.js scene
+  composer.render();
+
+  playerPulseT += dt / 1800 * Math.PI * 2 * 0.5; // full cycle in 1.8s
+}
+
+// ─── UPDATE ENEMIES ───────────────────────────────────────────────────────────
+function updateEnemies(dt, now) {
+  const dtSec = dt / 1000;
+
+  // L5 delayed ring spawn
+  if (currentLevel === 5 && ring3Spawned < 3) {
+    const elapsed = now - levelStartTime;
+    if (elapsed >= 8000) {
+      const targetSpawn = Math.floor((elapsed - 8000) / 1000) + 1;
+      const toSpawn = Math.min(targetSpawn, 3) - ring3Spawned;
+      if (toSpawn > 0) {
+        const ring3 = rings[2];
+        ring3.active = true;
+        for (let i = 0; i < toSpawn; i++) {
+          const ang = ring3.pendingAngles[ring3Spawned];
+          ring3.enemies.push({
+            ring: ring3, angle: ang, orbits: 0, totalAngle: 0,
+            spiraling: false, spiralTimer: 0, spiralDir: -1,
+            currentRadiusPx: ring3.radiusPx,
+            flipping: false, flipStart: 0, flipFrom: 0,
+            trail: [], trailTimer: 0, alive: true
+          });
+          ring3Spawned++;
+        }
+      }
+    }
+  }
+
+  rings.forEach(r => {
+    if (!r.active) return;
+    r.enemies.forEach(e => {
+      if (!e.alive) return;
+
+      if (e.spiraling) {
+        // Spiral inward or outward
+        const speed = e.spiralTimer < SPIRAL_PHASE1_DUR
+          ? SPIRAL_SPEED_1
+          : SPIRAL_SPEED_2;
+        e.currentRadiusPx += e.spiralDir * speed * dtSec;
+        e.spiralTimer += dt;
+
+        // Still move along orbit
+        e.angle += r.speedDeg * r.dir * dtSec;
+        e.angle = ((e.angle % 360) + 360) % 360;
+
+        // Update trail
+        e.trailTimer = (e.trailTimer || 0) + dt;
+        if (e.trailTimer > 16) {
+          e.trailTimer = 0;
+          const pos = enemyScreenPos(e);
+          e.trail.push({ x: pos.x, y: pos.y });
+          if (e.trail.length > 12) e.trail.shift();
+        }
+
+        // Flash ring
+        r.flashTimer = 400;
+
+        // If spiraling outward and returns to ring radius, stop spiraling
+        if (e.spiralDir === 1 && e.currentRadiusPx >= r.radiusPx) {
+          e.spiraling = false;
+          e.currentRadiusPx = r.radiusPx;
+          e.trail = [];
+        }
+      } else {
+        // Normal orbit
+        const prevAngle = e.angle;
+        e.angle += r.speedDeg * r.dir * dtSec;
+        e.angle = ((e.angle % 360) + 360) % 360;
+
+        // Track total angle for orbit count
+        const delta = Math.abs(r.speedDeg * dtSec);
+        e.totalAngle += delta;
+        if (e.totalAngle >= 360 * (e.orbits + 1)) {
+          e.orbits++;
+          if (e.orbits >= SPIRAL_ORBITS) {
+            // Start spiraling inward
+            e.spiraling = true;
+            e.spiralTimer = 0;
+            e.spiralDir = -1; // inward
+            e.currentRadiusPx = r.radiusPx;
+            e.trail = [];
+          }
+        }
+        e.currentRadiusPx = r.radiusPx;
+      }
+
+      // End flip rotation animation
+      if (e.flipping && (now - e.flipStart) >= FLIP_ROTATION_MS) {
+        e.flipping = false;
+      }
+    });
+  });
+}
+
+// ─── CHECK DEATHS ─────────────────────────────────────────────────────────────
+function checkDeaths(now) {
+  if (!hasEverActed) return;
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  rings.forEach(r => {
+    r.enemies.forEach(e => {
+      if (!e.alive || !e.spiraling) return;
+      const pos = enemyScreenPos(e);
+      const dx = pos.x - cx, dy = pos.y - cy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < DEATH_DISTANCE_PX) {
+        playerHit(e);
+      }
+    });
+  });
+}
+
+// ─── DRAW OVERLAY ─────────────────────────────────────────────────────────────
+function drawOverlay(now) {
+  const ctx = overlayCtx;
+  ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+  // Draw rings
+  rings.forEach(r => {
+    if (!r.active && r.delayed) return;
+    drawRing(ctx, r, now);
+  });
+
+  // Draw enemies
+  rings.forEach(r => {
+    r.enemies.forEach(e => {
+      if (!e.alive) return;
+      drawEnemy(ctx, e, now);
+    });
+  });
+
+  // Draw player
+  drawPlayer(ctx, now);
+
+  // Draw explosions
+  drawExplosions(ctx, now);
+  drawScorePopups(ctx, now);
+
+  overlayTexture.needsUpdate = true;
+}
+
+// ─── START SCREEN ANIMATION ───────────────────────────────────────────────────
+function initStartScreen() {
+  startAnimCanvas = document.createElement('canvas');
+  startAnimCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+  const startScreenEl = document.getElementById('startScreen');
+  if (startScreenEl) {
+    // Replace existing startCanvas with our created one
+    const old = document.getElementById('startCanvas');
+    if (old && old.parentNode) old.parentNode.replaceChild(startAnimCanvas, old);
+    else if (startScreenEl) startScreenEl.insertBefore(startAnimCanvas, startScreenEl.firstChild);
+  }
+  startAnimCtx = startAnimCanvas.getContext('2d');
+  startAnimCanvas.width  = window.innerWidth;
+  startAnimCanvas.height = window.innerHeight;
+
+  // Create idle enemies
+  startEnemies = [];
+  const rings2 = [
+    { radiusPx: getScaledRadius(140), speedDeg: 10, dir: 1 },
+    { radiusPx: getScaledRadius(200), speedDeg: 7,  dir: -1 }
+  ];
+
+  rings2.forEach((r, ri) => {
+    for (let i = 0; i < 3; i++) {
+      startEnemies.push({
+        ringRef: r,
+        angle: i * 120,
+        totalAngle: 0,
+        spiraling: false,
+        alive: true,
+        currentRadiusPx: r.radiusPx,
+        flipping: false,
+        flipStart: 0,
+        trail: []
+      });
+    }
+  });
+
+  startFlipTimer = 6000;
+  startFlipPhase = 0;
+  animateStartScreen(performance.now());
+}
+
+let startLastTime = 0;
+let startExplosions = [];
+let startFlipCountdown = 6000;
+
+function animateStartScreen(now) {
+  if (gameState !== 'start') return;
+  requestAnimationFrame(animateStartScreen);
+
+  const dt = Math.min(now - startLastTime, 100);
+  startLastTime = now;
+  const ctx = startAnimCtx;
+
+  ctx.clearRect(0, 0, startAnimCanvas.width, startAnimCanvas.height);
+
+  startFlipCountdown -= dt;
+
+  // Auto-flip every 6s
+  if (startFlipCountdown <= 0) {
+    startFlipCountdown = 6000;
+    // Flip all
+    startEnemies.forEach(e => {
+      e.ringRef.dir *= -1;
+      e.flipping = true;
+      e.flipStart = now;
+    });
+  }
+
+  // Update start enemies
+  const dtSec = dt / 1000;
+  startEnemies.forEach(e => {
+    if (!e.alive) return;
+    e.angle += e.ringRef.speedDeg * e.ringRef.dir * dtSec;
+    e.angle = ((e.angle % 360) + 360) % 360;
+    if (e.flipping && (now - e.flipStart) >= FLIP_ROTATION_MS) {
+      e.flipping = false;
+    }
+  });
+
+  // Check start screen collisions
+  const alive = startEnemies.filter(e => e.alive);
+  for (let i = 0; i < alive.length; i++) {
+    for (let j = i+1; j < alive.length; j++) {
+      const ea = alive[i], eb = alive[j];
+      const pa = startEnemyPos(ea), pb = startEnemyPos(eb);
+      const dx = pa.x - pb.x, dy = pa.y - pb.y;
+      if (Math.sqrt(dx*dx+dy*dy) < CHAIN_RADIUS_PX) {
+        startExplosions.push({ x:(pa.x+pb.x)/2, y:(pa.y+pb.y)/2, lines:[], startTime:now, depth:1 });
+        const ex = startExplosions[startExplosions.length-1];
+        for(let k=0;k<12;k++){
+          ex.lines.push({angle:Math.random()*Math.PI*2, len:20+Math.random()*20, burstRadius:20});
+        }
+        ea.alive = false;
+        eb.alive = false;
+      }
+    }
+  }
+
+  // Respawn dead start enemies after 2s
+  startEnemies.forEach((e, i) => {
+    if (!e.alive) {
+      e._deadTimer = (e._deadTimer || 0) + dt;
+      if (e._deadTimer > 2000) {
+        e.alive = true;
+        e._deadTimer = 0;
+        e.angle = i * 120;
+      }
+    }
+  });
+
+  // Draw idle rings
+  const rings2 = [
+    { radiusPx: getScaledRadius(140) },
+    { radiusPx: getScaledRadius(200) }
+  ];
+  rings2.forEach(r => {
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    ctx.strokeStyle = 'rgba(26,26,58,0.4)';
+    ctx.lineWidth = 1.5;
+    if (ctx.setLineDash) ctx.setLineDash([8,4]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r.radiusPx, 0, Math.PI*2);
+    ctx.stroke();
+    if (ctx.setLineDash) ctx.setLineDash([]);
+  });
+
+  // Draw player core
+  drawPlayerSimple(ctx, now);
+
+  // Draw start enemies
+  startEnemies.forEach(e => {
+    if (!e.alive) return;
+    const pos = startEnemyPos(e);
+    const angle = e.angle * Math.PI / 180;
+    const travelAngle = angle + (e.ringRef.dir > 0 ? Math.PI/2 : -Math.PI/2);
+    const w=14, h=18;
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    ctx.rotate(travelAngle + Math.PI/2);
+    ctx.fillStyle = '#FF4D00';
+    ctx.beginPath();
+    ctx.moveTo(0,-h/2); ctx.lineTo(-w/2,h/2); ctx.lineTo(w/2,h/2);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(0,-h/2); ctx.stroke();
+    ctx.restore();
+  });
+
+  // Draw start explosions
+  drawExplosionsCtx(ctx, startExplosions, now);
+}
+
+function startEnemyPos(e) {
+  const angle = e.angle * Math.PI / 180;
+  const r = e.currentRadiusPx || e.ringRef.radiusPx;
+  return {
+    x: window.innerWidth/2  + Math.cos(angle) * r,
+    y: window.innerHeight/2 - Math.sin(angle) * r
+  };
+}
+
+function drawPlayerSimple(ctx, now) {
+  const cx = window.innerWidth/2, cy = window.innerHeight/2;
+  const pr = 8 + 2*(0.5 + 0.5*Math.sin(now/1800*Math.PI*2*0.5));
+  ctx.strokeStyle = 'rgba(0,229,255,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(cx,cy,16,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(0,229,255,0.6)'; ctx.lineWidth=1.5;
+  for(let i=0;i<4;i++){
+    const a=i*Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*16,cy+Math.sin(a)*16);
+    ctx.lineTo(cx+Math.cos(a)*22,cy+Math.sin(a)*22);
+    ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(cx,cy,pr,0,Math.PI*2);
+  ctx.fillStyle='#00E5FF'; ctx.fill();
+}
+
+function drawExplosionsCtx(ctx, exArr, now) {
+  for (let i = exArr.length-1; i >= 0; i--) {
+    const ex = exArr[i];
+    const t = (now - ex.startTime) / 180;
+    if (t >= 1) { exArr.splice(i,1); continue; }
+    const ease = 1 - t*t;
+    for (const line of ex.lines) {
+      const x2 = ex.x + Math.cos(line.angle)*(line.len+line.burstRadius)*ease;
+      const y2 = ex.y + Math.sin(line.angle)*(line.len+line.burstRadius)*ease;
+      const g  = Math.round(255*(1-t)+179*t);
+      ctx.strokeStyle = `rgba(255,${g},0,${ease})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(ex.x,ex.y); ctx.lineTo(x2,y2); ctx.stroke();
+    }
+  }
+}
+
+// ─── SCREEN FLOW ──────────────────────────────────────────────────────────────
+function showInstructions() {
+  document.getElementById('startScreen').classList.add('hidden');
+  const el = document.getElementById('instructionsScreen');
+  el.classList.remove('hidden');
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.pointerEvents = 'auto'; });
+  initAudio().catch(() => {});
+}
+
+function startFromInstructions() {
+  const el = document.getElementById('instructionsScreen');
+  el.style.opacity = '0';
+  setTimeout(() => {
+    el.classList.add('hidden');
+    gameStartTime = performance.now();
+    gameState = 'playing';
+    startLevel(currentLevel);
+  }, 300);
+}
+
+document.getElementById('startScreen').addEventListener('pointerdown', showInstructions, { once: true });
+document.getElementById('instructionsScreen').addEventListener('pointerdown', startFromInstructions, { once: true });
+
+// ─── OVERLAY RESTART ──────────────────────────────────────────────────────────
+overlayScreen.addEventListener('pointerdown', () => {
+  if (gameState === 'win' || gameState === 'lose') {
+    overlayScreen.classList.remove('visible');
+    score = 0; lives = 3; currentLevel = 1;
+    hasEverActed = false; bestChain = 0;
+    waveDiedThisRound = false;
+    flipCooldownRemaining = 0;
+    updateLives();
+    updateScoreDisplay();
+    desaturate(false);
+    gameState = 'playing';
+    startLevel(1);
+  }
+});
+
+// ─── FLIP BUTTON INPUT ────────────────────────────────────────────────────────
+flipBtn.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  if (gameState === 'playing') {
+    doFlip(performance.now());
+  }
+});
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+initThree();
+flipBtn.classList.add('hidden');
+initStartScreen();
+requestAnimationFrame(gameLoop);
+updateLives();
+
+</script>
+</body>
+</html>
