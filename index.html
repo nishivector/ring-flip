@@ -12,6 +12,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #0A0A1A; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
     canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; z-index: 0; }
+    #gameCanvas2d { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; touch-action: none; }
 
     #startScreen {
       position: fixed; inset: 0;
@@ -190,6 +191,8 @@
 </head>
 <body>
 
+<!-- 2D game overlay canvas (enemies, rings, player) -->
+<canvas id="gameCanvas2d"></canvas>
 <!-- Vignette -->
 <div id="vignetteEl"></div>
 <!-- Desaturation overlay for death -->
@@ -325,9 +328,8 @@ let renderer, scene, camera, composer;
 let worldWidth = 12;
 let pxPerUnit; // pixels per world unit
 
-// Canvas overlay (2D) for player, rings, enemies drawn as sprite layers
-// We use THREE canvas2D texture approach: draw to offscreen canvas each frame
-let overlayCanvas, overlayCtx, overlayTexture, overlayMesh;
+// Canvas overlay (2D) for player, rings, enemies drawn directly on DOM canvas
+let overlayCanvas, overlayCtx;
 
 // Start screen canvas
 let startAnimCanvas, startAnimCtx;
@@ -499,21 +501,13 @@ function initThree() {
   );
   composer.addPass(bloom);
 
-  // Overlay canvas for 2D drawing
-  overlayCanvas = document.createElement('canvas');
+  pxPerUnit = window.innerWidth / worldWidth;
+
+  // Overlay canvas: DOM canvas for 2D drawing (enemies, rings, player)
+  overlayCanvas = document.getElementById('gameCanvas2d');
   overlayCanvas.width  = window.innerWidth;
   overlayCanvas.height = window.innerHeight;
   overlayCtx = overlayCanvas.getContext('2d');
-  overlayTexture = new THREE.CanvasTexture(overlayCanvas);
-  const overlayGeo = new THREE.PlaneGeometry(worldWidth, worldWidth / aspect);
-  const overlayMat = new THREE.MeshBasicMaterial({
-    map: overlayTexture, transparent: true, depthWrite: false
-  });
-  overlayMesh = new THREE.Mesh(overlayGeo, overlayMat);
-  overlayMesh.position.z = 0.1;
-  scene.add(overlayMesh);
-
-  pxPerUnit = window.innerWidth / worldWidth;
 
   window.addEventListener('resize', onResize);
 }
@@ -530,8 +524,6 @@ function onResize() {
   composer.setSize(w, h);
   overlayCanvas.width  = w;
   overlayCanvas.height = h;
-  overlayTexture.needsUpdate = true;
-  overlayMesh.scale.set(1, w/h / (w/h), 1); // keep proportional
   pxPerUnit = w / worldWidth;
 }
 
@@ -1346,8 +1338,6 @@ function drawOverlay(now) {
   // Draw explosions
   drawExplosions(ctx, now);
   drawScorePopups(ctx, now);
-
-  overlayTexture.needsUpdate = true;
 }
 
 // ─── START SCREEN ANIMATION ───────────────────────────────────────────────────
